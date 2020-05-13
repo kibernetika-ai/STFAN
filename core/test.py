@@ -76,7 +76,7 @@ def test(cfg, epoch_idx, dataset_loader, test_transforms, deblurnet, test_writer
                 output_img, output_fea = deblurnet(img_blur, last_img_blur, output_last_img, output_last_fea)
                 torch.cuda.synchronize()
                 test_time.update(time() - test_time_start)
-                print('[RUNING TIME] {0}'.format(test_time))
+                print('[RUNNING TIME] {0}'.format(test_time))
 
                 img_PSNR = PSNR(output_img, img_clear)
                 img_PSNRs.update(img_PSNR.item(), cfg.CONST.TRAIN_BATCH_SIZE)
@@ -105,7 +105,7 @@ def test(cfg, epoch_idx, dataset_loader, test_transforms, deblurnet, test_writer
 
                 if cfg.NETWORK.PHASE == 'test':
                     test_psnr[name]['n_samples'] += 1
-                    test_psnr[name]['psnr'].append(img_PSNR)
+                    test_psnr[name]['psnr'].append(img_PSNR.detach().cpu().numpy())
                     img_dir = os.path.join(cfg.DIR.OUT_PATH, name)
                     if not os.path.isdir(img_dir):
                         mkdir(img_dir)

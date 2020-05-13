@@ -77,7 +77,7 @@ def main():
         # video_format = video.get(cv2.CAP_PROP_FORMAT)
         video_writer = cv2.VideoWriter(
             args.output, fourcc, fps,
-            frameSize=(width, height // 16 * 16)
+            frameSize=(width, height)
         )
 
     log_frames = 100
@@ -135,6 +135,7 @@ def main():
                     break
 
     print(f'Total time: {time_sum:0.3f}s')
+    print(f'Total frames: {frame_processed}')
     print(f'Average inference time: {time_sum / frame_processed * 1000:0.3f}ms')
     vc.release()
     if args.output:

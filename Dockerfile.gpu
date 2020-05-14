@@ -1,4 +1,4 @@
-FROM kuberlab/pytorch:1.4.0-cpu
+FROM kuberlab/pytorch:1.4.0-gpu
 
 COPY ./models /models
 COPY ./requirements.txt /

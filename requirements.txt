@@ -1,6 +1,5 @@
 argparse
 easydict
-json
 numpy
 matplotlib
 scipy

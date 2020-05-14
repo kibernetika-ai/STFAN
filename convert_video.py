@@ -1,4 +1,3 @@
-import logging
 import time
 import argparse
 from datetime import datetime as dt
@@ -51,10 +50,11 @@ def main():
     model = DeblurNet.DeblurNet()
     use_cuda = torch.cuda.is_available()
     torch.backends.cudnn.benchmark = True
+    model = torch.nn.DataParallel(model)
     if use_cuda:
-        model = torch.nn.DataParallel(model).cuda()
+        model.cuda()
     print('[INFO] %s Recovering from %s ...' % (dt.now(), args.model))
-    checkpoint = torch.load(args.model)
+    checkpoint = torch.load(args.model, map_location=torch.device('cuda' if use_cuda else 'cpu'))
     model.load_state_dict(checkpoint['deblurnet_state_dict'])
     # deblurnet_solver.load_state_dict(checkpoint['deblurnet_solver_state_dict'])
     init_epoch = checkpoint['epoch_idx'] + 1
@@ -96,19 +96,12 @@ def main():
             frame_num += 1
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             img_blur = normalize(frame)
-            if use_cuda:
-                img_blur = img_blur.cuda(non_blocking=True)
+            # if use_cuda:
+            #     img_blur = img_blur.cuda(non_blocking=True)
 
             if last_img_blur is None:
                 last_img_blur = img_blur
                 output_last_img = img_blur
-            # if len(imgs_in) <= n_frames:
-            #     imgs_in.append(img)
-            #     if len(imgs_in) < n_frames:
-            #         continue
-            #     if len(imgs_in) > n_frames:
-            #         imgs_in = [imgs_in[-1]]
-            #         continue
 
             t = time.time()
             output_img, output_fea = model(img_blur, last_img_blur, output_last_img, output_last_fea)

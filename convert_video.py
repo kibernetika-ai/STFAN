@@ -1,12 +1,16 @@
 import time
 import argparse
 from datetime import datetime as dt
+import logging
 
 import cv2
 import numpy as np
 import torch
 
 from models import DeblurNet
+
+
+LOG = logging.getLogger(__name__)
 
 
 def parse_args():
@@ -44,29 +48,33 @@ def denormalize(tensor):
 
 
 def main():
+    logging.basicConfig(
+        format='%(asctime)s %(levelname)-5s %(name)-10s [-] %(message)s',
+        level='INFO'
+    )
+    logging.root.setLevel(logging.INFO)
     args = parse_args()
 
-    print(f'Loading model from {args.model}...')
+    LOG.info(f'Loading model from {args.model}...')
     model = DeblurNet.DeblurNet()
     use_cuda = torch.cuda.is_available()
     torch.backends.cudnn.benchmark = True
     model = torch.nn.DataParallel(model)
     if use_cuda:
         model.cuda()
-    print('[INFO] %s Recovering from %s ...' % (dt.now(), args.model))
     checkpoint = torch.load(args.model, map_location=torch.device('cuda' if use_cuda else 'cpu'))
     model.load_state_dict(checkpoint['deblurnet_state_dict'])
     # deblurnet_solver.load_state_dict(checkpoint['deblurnet_solver_state_dict'])
     init_epoch = checkpoint['epoch_idx'] + 1
     best_img_psnr = checkpoint['Best_Img_PSNR']
     best_epoch = checkpoint['Best_Epoch']
-    print(
-        f'[INFO] {dt.now()} Recover complete. Current epoch #{init_epoch}, '
+    LOG.info(
+        f'Recover complete. Current epoch #{init_epoch}, '
         f'Best_Img_PSNR = {best_img_psnr} at epoch #{best_epoch}.'
     )
 
     model.eval()
-    print(f'Done.')
+    LOG.info(f'Done.')
 
     vc = cv2.VideoCapture(args.video)
     width = int(vc.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -84,6 +92,8 @@ def main():
     frame_num = 0
     frame_processed = 0
     time_sum = 0
+    sequence_len = 20
+
     last_img_blur = None
     output_last_img = None
     output_last_fea = None
@@ -105,6 +115,7 @@ def main():
 
             t = time.time()
             output_img, output_fea = model(img_blur, last_img_blur, output_last_img, output_last_fea)
+            torch.cuda.synchronize()
             time_sum += time.time() - t
 
             output_frame = denormalize(output_img[0])
@@ -116,7 +127,11 @@ def main():
 
             frame_processed += 1
             if frame_processed % log_frames == 0:
-                print(f'Processed {frame_processed} frames.')
+                LOG.info(f'Processed {frame_processed} frames.')
+            if frame_processed % sequence_len == 0:
+                last_img_blur = None
+                output_last_img = None
+                output_last_fea = None
 
             cv_frame = output_frame[:, :, ::-1]
             if args.output:
@@ -127,9 +142,9 @@ def main():
                 if key == 27:
                     break
 
-    print(f'Total time: {time_sum:0.3f}s')
-    print(f'Total frames: {frame_processed}')
-    print(f'Average inference time: {time_sum / frame_processed * 1000:0.3f}ms')
+    LOG.info(f'Total time: {time_sum:0.3f}s')
+    LOG.info(f'Total frames: {frame_processed}')
+    LOG.info(f'Average inference time: {time_sum / frame_processed * 1000:0.3f}ms')
     vc.release()
     if args.output:
         video_writer.release()
